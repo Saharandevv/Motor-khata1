@@ -32,7 +32,7 @@
     const { useState, useMemo, useEffect } = React;
 
     const DEFAULT_RATE = 150;
-    // ☁️ आपका लाइव गूगल शीट वेब ऐप लिंक यहाँ बिल्कुल सही सेट है ⬇️
+    // ☁️ आपका लाइव गूगल शीट वेब ऐप लिंक यहाँ बिल्कुल सुरक्षित तरीके से सेट है
     const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbzO-ZfdNbgteHO3_hXVP2JckrP3x9wqcVveGg3LHrajgGqyqZsgjV86RPPcScnX_yIe/exec";
 
     const PALETTE = [
@@ -91,8 +91,19 @@
       background: on ? "#38bdf8" : "rgba(255,255,255,0.08)",
       color: on ? "#0d1b2a" : "#94a3b8",
     });
+    const pageStyle = {
+      minHeight: "100vh",
+      background: "linear-gradient(160deg,#0d1b2a 0%,#1b2e3c 60%,#243b4a 100%)",
+      fontFamily: "'Segoe UI',sans-serif",
+      paddingBottom: 90,
+    };
+    const hdrStyle = {
+      background: "rgba(255,255,255,0.06)", backdropFilter: "blur(14px)",
+      borderBottom: "1px solid rgba(255,255,255,0.1)",
+      padding: "18px 18px 14px", position: "sticky", top: 0, zIndex: 10,
+    };
 
-    // ── ADD MODAL COMPONENT (App से बाहर ताकि कीबोर्ड फोकस न खोए) ──
+    // ── ADD MODAL COMPONENT ──
     const AddModal = ({ form, fc, people, setForm, pvValid, pvAmt, emptyForm, selName, setShowAdd, saveEntry }) => (
       <div style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)",
@@ -148,11 +159,11 @@
             )}
           </div>
           <div style={{ marginBottom: 14 }}>
-            <div style={{ ...lbl }}>Rate (₹/ghanta)</div>
+            <div style={lbl}>Rate (₹/ghanta)</div>
             <input name="rate" type="number" value={form.rate} onChange={fc} style={{ ...inp, padding: "12px 14px", fontSize: 15 }} />
           </div>
           <div style={{ marginBottom: 20 }}>
-            <div style={{ ...lbl }}>Note (optional)</div>
+            <div style={lbl}>Note (optional)</div>
             <input name="note" type="text" value={form.note} onChange={fc} placeholder="कुछ लिखना हो तो…" style={{ ...inp, padding: "12px 14px", fontSize: 15 }} />
           </div>
           <div style={{ display: "flex", gap: 10 }}>
@@ -330,6 +341,17 @@
       }
 
       function triggerPrint() { window.print(); }
+
+      const summaryGrid = (cards) => (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 12 }}>
+          {cards.map((c) => (
+            <div key={c.label} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 12, padding: "10px 6px", textAlign: "center", border: `1px solid ${c.color}33` }}>
+              <div style={{ color: c.color, fontWeight: 800, fontSize: 16 }}>{c.value}</div>
+              <div style={{ color: "#94a3b8", fontSize: 10, marginTop: 1 }}>{c.label}</div>
+            </div>
+          ))}
+        </div>
+      );
 
       const Card = ({ e }) => (
         <div style={{ background: e.paid ? "rgba(74,222,128,0.07)" : "rgba(255,255,255,0.05)", border: `1px solid ${e.paid ? "#4ade8033" : "rgba(255,255,255,0.09)"}`, borderRadius: 16, padding: "14px 15px" }}>
