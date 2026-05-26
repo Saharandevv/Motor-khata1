@@ -32,8 +32,8 @@
     const { useState, useMemo, useEffect } = React;
 
     const DEFAULT_RATE = 150;
-    // ☁️ आपका लाइव गूगल शीट वेब ऐप लिंक यहाँ सेट कर दिया गया है ⬇️
-    const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbyBkfiFtsDjXfxtjBRKTq114oVTHlspawpGTafiTzeXYagYo5131vZUooKRZq5XzEDVaA/exec";
+    // ☁️ आपका नया लाइव गूगल शीट वेब ऐप लिंक यहाँ सेट कर दिया गया है ⬇️
+    const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbzO-ZfdNbgteHO3_hXVP2JckrP3x9wqcVveGg3LHrajgGqyqZsgjV86RPPcScnX_yIe/exec";
 
     const PALETTE = [
       { bg: "#38bdf8", dark: "#0ea5e9" },
@@ -84,11 +84,14 @@
       useEffect(() => {
         fetch(GOOGLE_SHEET_URL, {
           method: "POST",
+          mode: "cors",
           body: JSON.stringify({ action: "load" })
         })
         .then(res => res.json())
         .then(data => {
-          setEntries(data);
+          if (Array.isArray(data)) {
+            setEntries(data);
+          }
           setLoading(false);
         })
         .catch(err => {
@@ -100,11 +103,12 @@
       const people = useMemo(() => {
         const map = {};
         entries.forEach((e) => {
+          if (!e.name) return;
           if (!map[e.name]) map[e.name] = { name: e.name, entries: [] };
           map[e.name].entries.push(e);
         });
         return Object.values(map).sort((a, b) =>
-          Math.max(...b.entries.map((x) => x.id)) - Math.max(...a.entries.map((x) => x.id))
+          Math.max(...b.entries.map((x) => x.id || 0)) - Math.max(...a.entries.map((x) => x.id || 0))
         );
       }, [entries]);
 
@@ -147,7 +151,6 @@
         setLoading(true);
 
         const newRecord = {
-          action: "save",
           id: Date.now(), name: form.name.trim(), date: form.date,
           hrs: parseInt(form.hrs) || 0, mins: parseInt(form.mins) || 0,
           amount: pvAmt, note: form.note, rate: Number(form.rate), paid: false,
@@ -155,12 +158,17 @@
 
         fetch(GOOGLE_SHEET_URL, {
           method: "POST",
-          body: JSON.stringify(newRecord)
+          mode: "no-cors",
+          body: JSON.stringify({ action: "save", ...newRecord })
         })
         .then(() => {
           setEntries((prev) => [newRecord, ...prev]);
           setForm({ ...emptyForm, name: selName || "" });
           setShowAdd(false);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error("सेव करने में समस्या:", err);
           setLoading(false);
         });
       }
@@ -173,6 +181,7 @@
 
         fetch(GOOGLE_SHEET_URL, {
           method: "POST",
+          mode: "no-cors",
           body: JSON.stringify({ action: "update", id: id, paid: !item.paid })
         })
         .then(() => {
@@ -186,6 +195,7 @@
         setLoading(true);
         fetch(GOOGLE_SHEET_URL, {
           method: "POST",
+          mode: "no-cors",
           body: JSON.stringify({ action: "delete", id: id })
         })
         .then(() => {
@@ -283,7 +293,7 @@
       );
 
       const DelModal = () => (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", backdropFilter: "blur(8px)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", backdropFilter: "blur(8px)", zIndex: 50, display: "flex", alignItems: "center", center: "center", padding: 20 }}>
           <div style={{ background: "#162030", borderRadius: 20, padding: 24, border: "1px solid rgba(239,68,68,0.3)", maxWidth: 300, width: "100%", textAlign: "center" }}>
             <div style={{ fontSize: 38 }}>🗑️</div>
             <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginTop: 10 }}>Record हटाएं?</div>
