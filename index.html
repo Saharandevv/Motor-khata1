@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>पंप हिसाब - Submersible Pump Kiraya Khata</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0d1b2a;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
+
+    const DEFAULT_RATE = 150;
+    const PALETTE = [
+      { bg: "#38bdf8", dark: "#0ea5e9" },
+      { bg: "#a78bfa", dark: "#7c3aed" },
+      { bg: "#34d399", dark: "#059669" },
+      { bg: "#fb923c", dark: "#ea580c" },
+      { bg: "#f472b6", dark: "#db2777" },
+      { bg: "#fbbf24", dark: "#d97706" },
+    ];
+
+    function fmtDate(d) {
+      return new Date(d + "T00:00:00").toLocaleDateString("hi-IN", {
+        day: "2-digit", month: "short", year: "numeric",
+      });
+    }
+
+    function fmtDuration(h, m) {
+      h = parseInt(h) || 0;
+      m = parseInt(m) || 0;
+      if (h === 0 && m === 0) return "-";
+      if (h === 0) return `${m} min`;
+      if (m === 0) return `${h} ghante`;
+      return `${h}h ${m}m`;
+    }
+
+    function calcAmt(h, m, rate) {
+      return Math.ceil(((parseInt(h) || 0) + (parseInt(m) || 0) / 60) * rate);
+    }
+
+    function App() {
+      const [entries, setEntries] = useState(() => {
+        const saved = localStorage.getItem("pump_entries");
+        return saved ? JSON.parse(saved) : [];
+      });
+
+      const [view, setView] = useState("list");
+      const [selName, setSelName] = useState(null);
+      const [showAdd, setShowAdd] = useState(false);
+      const [deleteId, setDeleteId] = useState(null);
+      const [tabFilter, setTabFilter] = useState("all");
+
+      const emptyForm = {
+        name: "", date: new Date().toISOString().slice(0, 10),
+        hrs: "", mins: "0", note: "", rate: DEFAULT_RATE,
+      };
+      const [form, setForm] = useState(emptyForm);
+
+      useEffect(() => {
+        localStorage.setItem("pump_entries", JSON.stringify(entries));
+      }, [entries]);
+
+      const people = useMemo(() => {
+        const map = {};
+        entries.forEach((e) => {
+          if (!map[e.name]) map[e.name] = { name: e.name, entries: [] };
+          map[e.name].entries.push(e);
+        });
+        return Object.values(map).sort((a, b) =>
+          Math.max(...b.entries.map((x) => x.id)) - Math.max(...a.entries.map((x) => x.id))
+        );
+      }, [entries]);
+
+      const col = (name) => {
+        const index = people.findIndex((p) => p.name === name);
+        return PALETTE[index >= 0 ? index % PALETTE.length : 0];
+      };
+
+      const khataAll = useMemo(() =>
+        entries.filter((e) => e.name === selName).sort((a, b) => b.id - a.id),
+        [entries, selName]
+      );
+      
+      const khataShow = tabFilter === "paid" ? khataAll.filter((e) => e.paid)
+        : tabFilter === "unpaid" ? khataAll.filter((e) => !e.paid) : khataAll;
+
+      const summary = (name) => {
+        const pe = entries.filter((e) => e.name === name);
+        const total = pe.reduce((s, e) => s + e.amount, 0);
+        const paid = pe.filter((e) => e.paid).reduce((s, e) => s + e.amount, 0);
+        return { total, paid, due: total - paid, count: pe.length };
+      };
+
+      const gTotal = entries.reduce((s, e) => s + e.amount, 0);
+      const gPaid = entries.filter((e) => e.paid).reduce((s, e) => s + e.amount, 0);
+      const gDue = gTotal - gPaid;
+
+      const pvAmt = calcAmt(form.hrs, form.mins, Number(form.rate));
+      const pvValid = (parseInt(form.hrs) || 0) > 0 || (parseInt(form.mins) || 0) > 0;
+
+      const fc = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+      function saveEntry() {
+        if (!form.name.trim() || !pvValid) return;
+        setEntries((prev) => [{
+          id: Date.now(), name: form.name.trim(), date: form.date,
+          hrs: parseInt(form.hrs) || 0, mins: parseInt(form.mins) || 0,
+          amount: pvAmt, note: form.note, rate: Number(form.rate), paid: false,
+        }, ...prev]);
+        setForm({ ...emptyForm, name: selName || "" });
+        setShowAdd(false);
+      }
+
+      function togglePaid(id) {
+        setEntries((prev) => prev.map((e) => e.id === id ? { ...e, paid: !e.paid } : e));
+      }
+      function delEntry(id) {
+        setEntries((prev) => prev.filter((e) => e.id !== id));
+        setDeleteId(null);
+      }
+
+      const inp = {
+        background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+        borderRadius: 12, color: "#fff", fontFamily: "inherit", colorScheme: "dark",
+        boxSizing: "border-box", width: "100%",
+      };
+      const lbl = { color: "#94a3b8", fontSize: 12, marginBottom: 5 };
+      const pill = (on) => ({
+        padding: "6px 16px", borderRadius: 20, border: "none", cursor: "pointer",
+        fontFamily: "inherit", fontSize: 13, fontWeight: 600,
+        background: on ? "#38bdf8" : "rgba(255,255,255,0.08)",
+        color: on ? "#0d1b2a" : "#94a3b8",
+      });
+
+      const AddModal = () => (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)",
+          backdropFilter: "blur(8px)", zIndex: 50,
+          display: "flex", alignItems: "flex-end", justifyContent: "center",
+        }}>
+          <div style={{
+            background: "#162030", borderRadius: "22px 22px 0 0",
+            padding: "24px 18px 50px", width: "100%", maxWidth: 500,
+            maxHeight: "92vh", overflowY: "auto",
+            border: "1px solid rgba(255,255,255,0.1)",
+          }}>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 18, marginBottom: 20 }}>
+              💧 नया Record
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={lbl}>किसान का नाम *</div>
+              <input name="name" value={form.name} onChange={fc}
+                list="nl" placeholder="नाम लिखें या चुनें…"
+                style={{ ...inp, padding: "12px 14px", fontSize: 15 }} />
+              <datalist id="nl">
+                {people.map((p) => <option key={p.name} value={p.name} />)}
+              </datalist>
+            </div>
+
+            <div style={{ marginBottom: 18 }}>
+              <div style={lbl}>तारीख *</div>
+              <input name="date" type="date" value={form.date} onChange={fc}
+                style={{ ...inp, padding: "12px 14px", fontSize: 15 }} />
+            </div>
+
+            <div style={{
+              background: "rgba(255,255,255,0.04)", borderRadius: 16,
+              border: "1px solid rgba(255,255,255,0.1)", padding: "16px 14px", marginBottom: 14,
+            }}>
+              <div style={{ color: "#7dd3fc", fontWeight: 700, fontSize: 14, marginBottom: 14 }}>
+                ⏱ पंप कितना चला?
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ ...lbl, marginBottom: 8 }}>घंटे (Hours)</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((h) => (
+                    <button key={h} type="button" onClick={() => setForm((f) => ({ ...f, hrs: String(h) }))}
+                      style={{
+                        width: 52, height: 44, borderRadius: 10, border: "none",
+                        cursor: "pointer", fontFamily: "inherit", fontSize: 16, fontWeight: 700,
+                        background: String(form.hrs) === String(h)
+                          ? "linear-gradient(135deg,#38bdf8,#0ea5e9)"
+                          : "rgba(255,255,255,0.08)",
+                        color: String(form.hrs) === String(h) ? "#fff" : "#94a3b8",
+                      }}>{h}</button>
+                  ))}
+                  <input
+                    name="hrs" type="number" min="0" max="23"
+                    value={form.hrs} onChange={fc}
+                    placeholder="अन्य"
+                    style={{
+                      ...inp, width: 70, height: 44, padding: "0 10px",
+                      fontSize: 15, textAlign: "center",
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ ...lbl, marginBottom: 8 }}>मिनट (Minutes)</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[0, 15, 30, 45].map((m) => (
+                    <button key={m} type="button" onClick={() => setForm((f) => ({ ...f, mins: String(m) }))}
+                      style={{
+                        flex: 1, height: 46, borderRadius: 10, border: "none",
+                        cursor: "pointer", fontFamily: "inherit", fontSize: 15, fontWeight: 700,
+                        background: String(form.mins) === String(m)
+                          ? "linear-gradient(135deg,#38bdf8,#0ea5e9)"
+                          : "rgba(255,255,255,0.08)",
+                        color: String(form.mins) === String(m) ? "#fff" : "#94a3b8",
+                      }}>{m}</button>
+                  ))}
+                </div>
+              </div>
+
+              {pvValid && (
+                <div style={{
+                  marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center",
+                  background: "rgba(56,189,248,0.1)", borderRadius: 12, padding: "12px 14px",
+                  border: "1px solid rgba(56,189,248,0.2)",
+                }}>
+                  <div>
+                    <div style={{ color: "#7dd3fc", fontSize: 11 }}>कुल समय</div>
+                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 17 }}>
+                      {fmtDuration(form.hrs, form.mins)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ color: "#7dd3fc", fontSize: 11 }}>रकम</div>
+                    <div style={{ color: "#38bdf8", fontWeight: 900, fontSize: 26 }}>
+                      ₹{pvAmt.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={lbl}>Rate (₹/ghanta)</div>
+              <input name="rate" type="number" value={form.rate} onChange={fc}
+                style={{ ...inp, padding: "12px 14px", fontSize: 15 }} />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={lbl}>Note (optional)</div>
+              <input name="note" type="text" value={form.note} onChange={fc}
+                placeholder="कुछ लिखना हो तो…"
+                style={{ ...inp, padding: "12px 14px", fontSize: 15 }} />
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button type="button"
+                onClick={() => { setShowAdd(false); setForm({ ...emptyForm, name: selName || "" }); }}
+                style={{
+                  flex: 1, padding: 14, borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)",
+                  background: "transparent", color: "#94a3b8", fontFamily: "inherit", fontSize: 14, cursor: "pointer",
+                }}>रद्द</button>
+              <button type="button" onClick={saveEntry} style={{
+                flex: 2, padding: 14, borderRadius: 12, border: "none",
+                background: pvValid && form.name.trim()
+                  ? "linear-gradient(135deg,#38bdf8,#0ea5e9)"
+                  : "rgba(255,255,255,0.1)",
+                color: pvValid && form.name.trim() ? "#fff" : "#64748b",
+                fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: "pointer",
+              }}>✅ Save करें</button>
+            </div>
+          </div>
+        </div>
+      );
+
+      const DelModal = () => (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)",
+          backdropFilter: "blur(8px)", zIndex: 50,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }}>
+          <div style={{
+            background: "#162030", borderRadius: 20, padding: 24,
+            border: "1px solid rgba(239,68,68,0.3)", maxWidth: 300, width: "100%", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 38 }}>🗑️</div>
+            <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginTop: 10 }}>Record हटाएं?</div>
+            <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 5 }}>यह हमेशा के लिए हट जाएगा।</div>
+            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+              <button type="button" onClick={() => setDeleteId(null)} style={{
+                flex: 1, padding: 12, borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)",
+                background: "transparent", color: "#94a3b8", fontFamily: "inherit", cursor: "pointer",
+              }}>रहने दो</button>
+              <button type="button" onClick={() => delEntry(deleteId)} style={{
+                flex: 1, padding: 12, borderRadius: 10, border: "none",
+                background: "#ef4444", color: "#fff", fontFamily: "inherit", fontWeight: 700, cursor: "pointer",
+              }}>हाँ, हटाओ</button>
+            </div>
+          </div>
+        </div>
+      );
+
+      const Card = ({ e }) => (
+        <div style={{
+          background: e.paid ? "rgba(74,222,128,0.07)" : "rgba(255,255,255,0.05)",
+          border: `1px solid ${e.paid ? "#4ade8033" : "rgba(255,255,255,0.09)"}`,
+          borderRadius: 16, padding: "14px 15px",
+        }}>
+          <div style={{ display: "flex", justifycontent: "space-between" }}>
+            <div>
+              <div style={{ color: "#94a3b8", fontSize: 12 }}>{fmtDate(e.date)}</div>
+              <div style={{ color: "#7dd3fc", fontWeight: 700, fontSize: 16, marginTop: 3 }}>
+                ⏱ {fmtDuration(e.hrs, e.mins)}
+              </div>
+              {e.note ? <div style={{ color: "#64748b", fontSize: 11, marginTop: 2 }}>📝 {e.note}</div> : null}
+            </div>
+            <div style={{ textAlign: "right", marginLeft: "auto" }}>
+              <div style={{ color: e.paid ? "#4ade80" : "#fb923c", fontWeight: 800, fontSize: 22 }}>
+                ₹{e.amount.toLocaleString()}
+              </div>
+              <div style={{ color: "#475569", fontSize: 11 }}>₹{e.rate}/hr</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 11 }}>
+            <button type="button" onClick={() => togglePaid(e.id)} style={{
+              flex: 1, padding: 9, borderRadius: 10, border: "none",
+              cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700,
+              background: e.paid ? "rgba(74,222,128,0.15)" : "rgba(251,146,60,0.13)",
+              color: e.paid ? "#4ade80" : "#fb923c",
+            }}>{e.paid ? "✅ Paid हो गया" : "💰 Paid Mark करो"}</button>
+            <button type="button" onClick={() => setDeleteId(e.id)} style={{
+              padding: "9px 13px", borderRadius: 10, border: "none",
+              cursor: "pointer", background: "rgba(239,68,68,0.1)", color: "#ef4444", fontSize: 14,
+            }}>🗑</button>
+          </div>
+        </div>
+      );
+
+      const pageStyle = {
+        minHeight: "100vh",
+        background: "linear-gradient(160deg,#0d1b2a 0%,#1b2e3c 60%,#243b4a 100%)",
+        fontFamily: "'Segoe UI',sans-serif",
+        paddingBottom: 90,
+      };
+      const hdrStyle = {
+        background: "rgba(255,255,255,0.06)", backdropFilter: "blur(14px)",
+        borderBottom: "1px solid rgba(255,255,255,0.1)",
+        padding: "18px 18px 14px", position: "sticky", top: 0, zIndex: 10,
+      };
+      const summaryGrid = (cards) => (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 12 }}>
+          {cards.map((c) => (
+            <div key={c.label} style={{
+              background: "rgba(255,255,255,0.06)", borderRadius: 12,
+              padding: "10px 6px", textAlign: "center", border: `1px solid ${c.color}33`,
+            }}>
+              <div style={{ color: c.color, fontWeight: 800, fontSize: 16 }}>{c.value}</div>
+              <div style={{ color: "#94a3b8", fontSize: 10, marginTop: 1 }}>{c.label}</div>
+            </div>
+          ))}
+        </div>
+      );
+
+      if (view === "khata" && selName) {
+        const c = col(selName);
+        const { total, paid, due, count } = summary(selName);
+        return (
+          <div style={pageStyle}>
+            <div style={hdrStyle}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button type="button" onClick={() => { setView("list"); setSelName(null); }} style={{
+                  background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 10,
+                  color: "#fff", fontSize: 18, cursor: "pointer", padding: "6px 12px",
+                }}>←</button>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 12,
+                  background: `linear-gradient(135deg,${c.bg},${c.dark})`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#fff", fontWeight: 800, fontSize: 18,
+                }}>{selName[0].toUpperCase()}</div>
+                <div>
+                  <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>{selName}</div>
+                  <div style={{ color: "#64748b", fontSize: 11 }}>{count} entries</div>
+                </div>
+              </div>
+              {summaryGrid([
+                { label: "कुल उधार", value: `₹${total.toLocaleString()}`, color: c.bg },
+                { label: "चुकाया", value: `₹${paid.toLocaleString()}`, color: "#4ade80" },
+                { label: "बाकी", value: `₹${due.toLocaleString()}`, color: "#fb923c" },
+              ])}
+            </div>
+
+            <div style={{ display: "flex", gap: 8, padding: "12px 16px 0", alignItems: "center" }}>
+              {[["all","सब"],["unpaid","बाकी"],["paid","चुका"]].map(([v,l]) => (
+                <button key={v} type="button" onClick={() => setTabFilter(v)} style={pill(tabFilter === v)}>{l}</button>
+              ))}
+              <button type="button" onClick={() => { setForm({ ...emptyForm, name: selName }); setShowAdd(true); }}
+                style={{
+                  marginLeft: "auto", padding: "6px 16px", borderRadius: 20, border: "none",
+                  background: `linear-gradient(135deg,${c.bg},${c.dark})`,
+                  color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                }}>+ Entry</button>
+            </div>
+
+            <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {khataShow.length === 0 && (
+                <div style={{
+                  textAlign: "center", padding: "40px 20px",
+                  background: "rgba(255,255,255,0.03)", borderRadius: 16, border: "1px dashed #334155",
+                }}>
+                  <div style={{ fontSize: 32 }}>📋</div>
+                  <div style={{ fontSize: 14, color: "#64748b", marginTop: 8 }}>कोई record नहीं</div>
+                </div>
+              )}
+              {khataShow.map((e) => <Card key={e.id} e={e} />)}
+            </div>
+
+            {showAdd && <AddModal />}
+            {deleteId && <DelModal />}
+          </div>
+        );
+      }
+
+      return (
+        <div style={pageStyle}>
+          <div style={hdrStyle}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <span style={{ fontSize: 30 }}>💧</span>
+              <div>
+                <div style={{ color: "#fff", fontWeight: 800, fontSize: 21 }}>पंप हिसाब</div>
+                <div style={{ color: "#7dd3fc", fontSize: 11 }}>Submersible Pump Kiraya Khata</div>
+              </div>
+            </div>
+            {summaryGrid([
+              { label: "कुल कमाई", value: `₹${gTotal.toLocaleString()}`, color: "#38bdf8" },
+              { label: "मिल गया", value: `₹${gPaid.toLocaleString()}`, color: "#4ade80" },
+              { label: "बाकी है", value: `₹${gDue.toLocaleString()}`, color: "#fb923c" },
+            ])}
+          </div>
+
+          <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+            {people.length === 0 && (
+              <div style={{
+                textAlign: "center", padding: "60px 20px", marginTop: 10,
+                background: "rgba(255,255,255,0.03)", borderRadius: 16, border: "1px dashed #334155",
+              }}>
+                <div style={{ fontSize: 44 }}>📒</div>
+                <div style={{ fontSize: 15, color: "#64748b", marginTop: 8 }}>कोई खाता नहीं है अभी</div>
+                <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>+ बटन दबाकर पहली entry डालें</div>
+              </div>
+            )}
+            {people.map((person) => {
+              const c = col(person.name);
+              const { total, paid, due, count } = summary(person.name);
+              const last = person.entries.sort((a, b) => b.id - a.id)[0];
+              return (
+                <div key={person.name} onClick={() => { setSelName(person.name); setView("khata"); setTabFilter("all"); }}
+                  style={{
+                    background: "rgba(255,255,255,0.055)", border: "1px solid rgba(255,255,255,0.09)",
+                    borderRadius: 18, padding: 16, cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 14,
+                  }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+                    background: `linear-gradient(135deg,${c.bg},${c.dark})`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "#fff", fontWeight: 900, fontSize: 22,
+                    boxShadow: `0 4px 16px ${c.bg}44`,
+                  }}>{person.name[0].toUpperCase()}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>{person.name}</div>
+                    <div style={{ color: "#64748b", fontSize: 11, marginTop: 1 }}>
+                      {count} entries · आखिरी: {fmtDate(last.date)}
+                    </div>
+                    <div style={{ marginTop: 7, height: 4, borderRadius: 4, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%", borderRadius: 4,
+                        width: total > 0 ? `${(paid / total) * 100}%` : "0%",
+                        background: `linear-gradient(90deg,${c.bg},${c.dark})`,
+                      }} />
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ color: due > 0 ? "#fb923c" : "#4ade80", fontWeight: 800, fontSize: 18 }}>
+                      ₹{due.toLocaleString()}
+                    </div>
+                    <div style={{ color: "#64748b", fontSize: 10 }}>बाकी</div>
+                  </div>
+                  <div style={{ color: "#475569", fontSize: 18 }}>›</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <button type="button" onClick={() => { setForm(emptyForm); setShowAdd(true); }} style={{
+            position: "fixed", bottom: 24, right: 20, width: 58, height: 58,
+            borderRadius: "50%", background: "linear-gradient(135deg,#38bdf8,#0ea5e9)",
+            border: "none", cursor: "pointer", fontSize: 30, color: "#fff",
+            boxShadow: "0 8px 28px rgba(56,189,248,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20,
+          }}>+</button>
+
+          {showAdd && <AddModal />}
+          {deleteId && <DelModal />}
+        </div>
+      );
+    }
+
+    const root = tragedies = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
