@@ -239,7 +239,7 @@
                       {fmtDuration(form.hrs, form.mins)}
                     </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
+                  <div style={{ textAlign: "right", marginLeft: "auto" }}>
                     <div style={{ color: "#7dd3fc", fontSize: 11 }}>रकम</div>
                     <div style={{ color: "#38bdf8", fontWeight: 900, fontSize: 26 }}>
                       ₹{pvAmt.toLocaleString()}
@@ -315,7 +315,7 @@
           border: `1px solid ${e.paid ? "#4ade8033" : "rgba(255,255,255,0.09)"}`,
           borderRadius: 16, padding: "14px 15px",
         }}>
-          <div style={{ display: "flex", justifycontent: "space-between" }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
             <div>
               <div style={{ color: "#94a3b8", fontSize: 12 }}>{fmtDate(e.date)}</div>
               <div style={{ color: "#7dd3fc", fontWeight: 700, fontSize: 16, marginTop: 3 }}>
@@ -515,7 +515,7 @@
       );
     }
 
-    const root = tragedies = ReactDOM.createRoot(document.getElementById('root'));
+    const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
 </body>
